@@ -1,11 +1,15 @@
 import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_APP_PASSWORD // Use App Password from Gmail
-  }
+    pass: process.env.EMAIL_APP_PASSWORD
+  },
+  debug: true, // Enable debug logging
+  logger: true // Enable built-in logger
 });
 
 interface UserDetails {
@@ -16,6 +20,14 @@ interface UserDetails {
 }
 
 export async function sendMeetingRequest(userDetails: UserDetails) {
+  console.log('Attempting to send email with following configuration:', {
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: process.env.SMTP_SECURE,
+    fromEmail: process.env.EMAIL_USER,
+    toEmail: process.env.ADMIN_EMAIL
+  });
+
   const htmlTemplate = `
     <!DOCTYPE html>
     <html>
@@ -66,16 +78,29 @@ export async function sendMeetingRequest(userDetails: UserDetails) {
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
-    to: process.env.ADMIN_EMAIL, // Your email where you want to receive notifications
+    to: process.env.ADMIN_EMAIL,
     subject: `New Meeting Request from ${userDetails.firstName} ${userDetails.lastName}`,
     html: htmlTemplate
   };
 
   try {
-    await transporter.sendMail(mailOptions);
-    return { success: true };
+    console.log('Sending email with options:', {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject
+    });
+    
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully:', info);
+    return { success: true, info };
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Detailed error sending email:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : error
+    });
     return { success: false, error };
   }
 } 

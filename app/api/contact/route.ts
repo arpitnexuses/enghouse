@@ -3,17 +3,24 @@ import nodemailer from 'nodemailer';
 
 // Create a transporter using Gmail
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT),
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_APP_PASSWORD, // Use App Password from Gmail
+    pass: process.env.EMAIL_APP_PASSWORD,
   },
+  debug: true,
+  logger: true
 });
 
 export async function POST(request: Request) {
   try {
+    console.log('Received contact form submission');
     const body = await request.json();
     const { firstName, lastName, email, companyName } = body;
+
+    console.log('Form data:', { firstName, lastName, email, companyName });
 
     // HTML email template
     const htmlContent = `
@@ -70,20 +77,34 @@ export async function POST(request: Request) {
     // Email options
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER, // Send to your email
+      to: process.env.ADMIN_EMAIL,
       subject: `New Consultation Request from ${firstName} ${lastName}`,
       html: htmlContent,
-      replyTo: email, // Allow direct reply to the client
+      replyTo: email,
     };
 
-    // Send email
-    await transporter.sendMail(mailOptions);
+    console.log('Attempting to send email with options:', {
+      from: mailOptions.from,
+      to: mailOptions.to,
+      subject: mailOptions.subject
+    });
 
-    return NextResponse.json({ message: 'Email sent successfully' }, { status: 200 });
+    // Send email
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent successfully:', info);
+
+    return NextResponse.json({ message: 'Email sent successfully', info }, { status: 200 });
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Detailed error in contact route:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      } : error
+    });
+    
     return NextResponse.json(
-      { error: 'Failed to send email' },
+      { error: error instanceof Error ? error.message : 'Failed to send email' },
       { status: 500 }
     );
   }
